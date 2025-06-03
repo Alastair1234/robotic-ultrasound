@@ -1,0 +1,19 @@
+name: robotic_ultrasound
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
+  - pytorch-cuda=11.6
+  - numpy
+  - opencv
+  - scikit-learn
+  - matplotlib
+  - pip
+  - pip:
+    - tqdm
+channel_priority: strict
