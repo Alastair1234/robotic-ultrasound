@@ -5,7 +5,11 @@ from transformers import AutoModel, AutoImageProcessor
 class DinoV2Regressor(nn.Module):
     def __init__(self, output_dim=6, model_name='facebook/dinov2-base'):
         super(DinoV2Regressor, self).__init__()
-        self.processor = AutoImageProcessor.from_pretrained(model_name)
+        self.processor = AutoImageProcessor.from_pretrained(
+            model_name,
+            do_rescale=False,
+            use_fast=True,
+        )
         self.backbone = AutoModel.from_pretrained(model_name)
         backbone_dim = self.backbone.config.hidden_size
         

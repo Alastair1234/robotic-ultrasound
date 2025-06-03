@@ -6,6 +6,22 @@ import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm
 
+torch.backends.cudnn.benchmark = True
+
+
+class WeightedSmoothL1Loss(nn.Module):
+    """Smooth L1 loss with per-element weighting."""
+
+    def __init__(self, weights):
+        super().__init__()
+        self.register_buffer("weights", torch.tensor(weights, dtype=torch.float32))
+        self.loss_fn = nn.SmoothL1Loss(reduction="none")
+
+    def forward(self, outputs, targets):
+        loss = self.loss_fn(outputs, targets)
+        weighted = loss * self.weights
+        return weighted.mean()
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 dataset = create_hf_dataset('data/imageInfo.json', 'data/images')
@@ -16,12 +32,18 @@ def collate_fn(batch):
     labels = torch.stack([torch.tensor(example['label']) for example in batch])
     return images, labels
 
-train_loader = DataLoader(dataset['train'], batch_size=8, shuffle=True, collate_fn=collate_fn)
-test_loader = DataLoader(dataset['test'], batch_size=8, shuffle=False, collate_fn=collate_fn)
+train_loader = DataLoader(
+    dataset['train'], batch_size=8, shuffle=True,
+    collate_fn=collate_fn, num_workers=4, pin_memory=True
+)
+test_loader = DataLoader(
+    dataset['test'], batch_size=8, shuffle=False,
+    collate_fn=collate_fn, num_workers=4, pin_memory=True
+)
 
 model = DinoV2Regressor().to(device)
 optimizer = optim.AdamW(model.parameters(), lr=1e-4)
-criterion = nn.MSELoss()
+criterion = WeightedSmoothL1Loss([1, 1, 1, 0.1, 0.1, 0.1])
 
 num_epochs = 10
 for epoch in range(num_epochs):
@@ -29,7 +51,8 @@ for epoch in range(num_epochs):
     total_loss = 0.0
 
     for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-        images, labels = images.to(device), labels.to(device)
+        images = images.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
 
         optimizer.zero_grad()
         outputs = model(images)
